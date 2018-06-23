@@ -3,40 +3,53 @@ use \Psr\Http\Message\ServerRequestInterface as Request;
 use \Psr\Http\Message\ResponseInterface as Response;
 
 require './vendor/autoload.php';
+require 'classes.php';
 
-$app = new \Slim\App;
+$configuration = [
+    'settings' => [
+        'displayErrorDetails' => true,
+    ],
+];
 
-$app->update('/{app}', function (Request $request, Response $response, array $args) 
+$conf = new \Slim\Container($configuration);
+$container = new \Slim\Container;
+$app = new \Slim\App($conf, $container);
+
+$container = $app->getContainer();
+$container['reviewObj'] = function ($container) {
+    $reviewObj = new Review();
+    return $reviewObj;
+};
+$container['curl'] = function ($container) {
+    $curl = new Curl\Curl();
+    return $curl;
+};
+$container['pdo'] = function ($container) {
+    $dsn = 'mysql:host=127.0.0.1;dbname=reviews';
+    $usr = 'root';
+    $pwd = 'password';
+    $pdo = new \Slim\PDO\Database($dsn, $usr, $pwd);
+    return $pdo;
+};
+
+$app->get('/{app}', function (Request $request, Response $response, array $args) 
 {
     $appName = $args['app'];
     $shopify_address = "https://apps.shopify.com/$appName/reviews.json";
     
-    $curl = new Curl\Curl();
+    $reviewObj = $this->reviewObj;
+    $curl = $this->curl;
+
+    $reviewObj->setPdo($this->pdo);
     $curl->get($shopify_address);
-    if($curl->http_response_code == 200){
-        $newRes = $response->withJson(json_decode($curl->response));
-        return $newRes;
+
+    if($curl->http_status_code == 200){
+        $returnedReviews = json_decode($curl->response);
+        $reviewObj->insert($returnedReviews->reviews, $appName);
     }
 
     $newRes = $response->withJson(json_decode(json_encode(['error'=>404])));
     return $newRes;
-    
 });
-
-/*$app->update('/{app}', function (Request $request, Response $response, array $args) 
-{
-    $appName = $args['app'];
-    $shopify_address = "https://apps.shopify.com/$appName/reviews.json";
-    
-    $curl = new Curl\Curl();
-    $curl->get($shopify_address);
-
-    //$response->getBody()->write("shopify: $shopify_address - $curl->response");
-    //$responde->
-    $response->getBody()->withHeader('Content-type', 'application/json')->write($curl->response);
-    return $response;
-});*/
-
-
 
 $app->run();

@@ -1,0 +1,9 @@
+mysql:
+   image: mariadb
+   container_name: database_container
+   ports:
+      - "3306:3306"
+   volumes:
+      - ./sql_dump:/sql_dump
+   environment:
+      MYSQL_ROOT_PASSWORD: password
